@@ -1,0 +1,56 @@
+# Status Page Configuration
+# See docs/config-schema.md for complete schema details.
+
+storage:
+  path: data/status.db
+  retention_hours: 24
+
+ui:
+  refresh_seconds: 30
+  bucket_minutes: 15
+  title: My Status Page
+
+services:
+  - id: google
+    name: Google
+    interval_seconds: 60
+    checks:
+      - type: https
+        url: https://www.google.com
+        expected_status: [200]
+        timeout_seconds: 8
+
+  - id: jsonplaceholder
+    name: JSONPlaceholder
+    interval_seconds: 60
+    checks:
+      - type: https
+        url: https://jsonplaceholder.typicode.com/posts/1
+        expected_status: [200]
+        timeout_seconds: 8
+        json_fields:
+          - path: id
+            value: 1
+          - path: userId
+            value: 1
+          - path: title
+            operator: contains
+            value: sunt
+  - id: example
+    name: example.com
+    interval_seconds: 60
+    checks:
+      - type: https
+        url: https://example.com
+        expected_status: [200]
+        timeout_seconds: 8
+        verify_tls: false
+  
+  - id: doesnt-exist
+    name: Doesn't Exist
+    interval_seconds: 60
+    checks:
+      - type: https
+        url: https://doesnt.exist
+        expected_status: [200]
+        timeout_seconds: 8
