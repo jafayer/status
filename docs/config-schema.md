@@ -2,6 +2,16 @@
 
 The status page reads YAML from `STATUS_PAGE_CONFIG` or `config/status-page.yaml`.
 
+String values in YAML support `${ENV_VAR}` interpolation (for example, `Authorization: Bearer ${API_KEY}`).
+
+Before reading YAML, the app also loads environment variables from `.env` files (without overriding already-exported variables):
+
+- `.env` in current working directory
+- `.env` next to the config file
+- `.env` in the parent directory of the config file
+
+You can override this behavior with `STATUS_PAGE_DOTENV=/path/to/.env`.
+
 ## Top-level schema
 
 ```yaml
@@ -63,6 +73,9 @@ Service-level status is the worst status among its checks.
   url: https://example.com/health
   method: GET
   timeout_seconds: 8
+  headers:
+    Authorization: Bearer ${API_TOKEN}
+    X-API-Key: your-key
   sla: 99.9
   expected_status: [200]
   degraded_statuses: [429, 503]
@@ -74,6 +87,7 @@ Service-level status is the worst status among its checks.
 Notes:
 - `expected_status` may be an int or int list.
 - `degraded_statuses` may be an int or int list.
+- `headers` is optional and accepts any key/value map for request headers.
 - `sla` is optional and overrides top-level `default_sla` for this check.
 - If `body_contains`/`body_regex` is set and does not match, check fails (`red`).
 - `json_fields` checks are evaluated after status / body checks (see below).

@@ -29,6 +29,18 @@ def _as_int_list(value: Any, default: list[int]) -> list[int]:
     return default
 
 
+def _as_header_dict(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    headers: dict[str, str] = {}
+    for key, header_value in value.items():
+        header_name = str(key).strip()
+        if not header_name:
+            continue
+        headers[header_name] = str(header_value)
+    return headers
+
+
 def run_check(check: dict[str, Any], ctx: CheckContext) -> CheckResult:
     check_type = str(check.get("type", "")).strip().lower()
     if check_type in {"http", "https"}:
@@ -154,10 +166,11 @@ def _run_http_check(check: dict[str, Any], ctx: CheckContext) -> CheckResult:
     body_regex = check.get("body_regex")
     json_fields: list[dict[str, Any]] = check.get("json_fields") or []
     verify_tls = bool(check.get("verify_tls", True))
+    headers = _as_header_dict(check.get("headers"))
 
     try:
         with httpx.Client(timeout=timeout, verify=verify_tls) as client:
-            response = client.request(method, url)
+            response = client.request(method, url, headers=headers)
 
         elapsed = int((time.time() - started) * 1000)
 

@@ -29,6 +29,8 @@ services:
     checks:
       - type: https
         url: https://jsonplaceholder.typicode.com/posts/1
+        headers:
+          Accept: application/json
         expected_status: [200]
         timeout_seconds: 8
         json_fields:

@@ -12,7 +12,7 @@ A Docker-able status page that:
 
 - **Config-driven**: add/change services without code changes
 - **Check types**:
-  - HTTP / HTTPS (status code, body substring, regex)
+  - HTTP / HTTPS (status code, body substring, regex, custom headers)
   - DNS (rcode + returned values)
   - TCP connectivity
   - shell command exit code
@@ -43,6 +43,8 @@ Override via env var:
 - `STATUS_PAGE_CONFIG=/path/to/your.yaml`
 
 Full schema and examples are in [docs/config-schema.md](docs/config-schema.md).
+
+Config supports `${ENV_VAR}` interpolation in string values (for example in HTTP headers), and `.env` loading at startup.
 
 ## Local run
 
