@@ -72,6 +72,14 @@ class MonitorEngine:
         worst = max(checks, key=lambda c: STATE_PRIORITY[c.state])
         return worst.state
 
+    def _effective_sla(self, check_config: dict[str, Any]) -> float:
+        raw_sla = check_config.get("sla", self.config.default_sla)
+        try:
+            sla = float(raw_sla)
+        except (TypeError, ValueError):
+            sla = self.config.default_sla
+        return max(0.0, min(100.0, sla))
+
     def snapshot(self) -> dict[str, Any]:
         bucket_minutes = self.config.ui.bucket_minutes
         bucket_size = bucket_minutes * 60
@@ -99,33 +107,71 @@ class MonitorEngine:
                     }
                     for chk in result.checks
                 ]
-                current_state = result.state.value
-                summary = result.summary
                 checked_at = result.checked_at
+                probe_summary = result.summary
             elif persisted:
-                checks = persisted["checks"]
-                current_state = persisted["state"]
-                summary = persisted["summary"]
+                checks = [
+                    {
+                        "check_type": c["check_type"],
+                        "state": State.GREEN.value if c["passed"] else State.RED.value,
+                        "message": c["message"],
+                        "duration_ms": c["duration_ms"],
+                        "detail": {},
+                    }
+                    for c in persisted["checks"]
+                ]
                 checked_at = persisted["checked_at"]
+                probe_summary = summarize_checks(
+                    [
+                        CheckResult(
+                            check_type=c["check_type"],
+                            state=State.GREEN if c["passed"] else State.RED,
+                            message=c["message"],
+                            duration_ms=c["duration_ms"],
+                        )
+                        for c in persisted["checks"]
+                    ]
+                )
             else:
                 checks = []
-                current_state = State.GREY.value
-                summary = "No data collected yet"
                 checked_at = None
+                probe_summary = "No data collected yet"
 
-            buckets = [State.GREY.value] * bucket_count
-            for ts, state in self.storage.history(service.id, since_ts):
-                idx = int((ts - since_ts) // bucket_size)
-                if idx < 0 or idx >= bucket_count:
-                    continue
-                if STATE_PRIORITY[State(state)] > STATE_PRIORITY[State(buckets[idx])]:
-                    buckets[idx] = state.value
+            # Per-check bucket data: {check_index: [(passed_count, total_count), ...]}
+            check_bucket_data = self.storage.bucket_uptimes(service.id, since_ts, bucket_size, bucket_count)
 
-            # The most recent bar should always reflect the current state so it
-            # stays consistent with the status badge, even if the service dipped
-            # to a worse state earlier in the same bucket window.
-            if current_state != State.GREY.value:
-                buckets[-1] = current_state
+            buckets = []
+            for bucket_idx in range(bucket_count):
+                worst = State.GREY
+                worst_uptime: float | None = None
+                worst_sla: float | None = None
+                for chk_idx, raw_check in enumerate(service.checks):
+                    sla = self._effective_sla(raw_check)
+                    per_check = check_bucket_data.get(chk_idx)
+                    if per_check is None:
+                        continue
+                    passed_count, total_count = per_check[bucket_idx]
+                    if total_count == 0:
+                        continue
+                    uptime_pct = (passed_count / total_count) * 100.0
+                    if uptime_pct >= sla:
+                        state = State.GREEN
+                    elif passed_count > 0:
+                        state = State.YELLOW
+                    else:
+                        state = State.RED
+                    if STATE_PRIORITY[state] > STATE_PRIORITY[worst]:
+                        worst = state
+                        worst_uptime = uptime_pct
+                        worst_sla = sla
+                buckets.append({
+                    "state": worst.value,
+                    "uptime_pct": round(worst_uptime, 2) if worst_uptime is not None else None,
+                    "sla": round(worst_sla, 2) if worst_sla is not None else None,
+                })
+
+            current_state = buckets[-1]["state"] if buckets else State.GREY.value
+            summary = probe_summary
 
             services.append(
                 {

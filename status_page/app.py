@@ -126,9 +126,28 @@ def _format_ts(ts: int | None) -> str:
     return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+_STATE_LABELS: dict[str, str] = {
+    "green": "Operational",
+    "yellow": "Degraded",
+    "red": "Outage",
+    "grey": "Unknown",
+}
+
 def _state_badge(state: str):
-    safe = state if state in {"green", "yellow", "red", "grey"} else "grey"
-    return Span(safe, cls=f"badge state-{safe}")
+    safe = state if state in _STATE_LABELS else "grey"
+    return Span(_STATE_LABELS[safe], cls=f"badge state-{safe}")
+
+
+def _bucket_title(bucket: dict) -> str:
+    state = bucket.get("state", "grey")
+    uptime = bucket.get("uptime_pct")
+    sla = bucket.get("sla")
+    label = _STATE_LABELS.get(state, "Unknown")
+    if uptime is None:
+        return label
+    if sla is not None:
+        return f"{label} — {uptime:.1f}% uptime (SLA: {sla:.1f}%)"
+    return f"{label} — {uptime:.1f}% uptime"
 
 
 def _service_card(service: dict):
@@ -146,11 +165,17 @@ def _service_card(service: dict):
             ),
             cls="service-top",
         ),
-        Div(*[Div(cls=f"bar {bucket}", title=bucket) for bucket in buckets], cls="timeline"),
+        Div(
+            *[
+                Div(cls=f"bar {b.get('state', 'grey')}", title=_bucket_title(b))
+                for b in buckets
+            ],
+            cls="timeline",
+        ),
         Div(
             *[
                 Div(
-                    Div(f"{chk.get('check_type', 'check')} • {chk.get('duration_ms', 0)}ms", cls="small"),
+                    Div(f"{chk.get('check_type', 'check')} \u2022 {chk.get('duration_ms', 0)}ms", cls="small"),
                     Div(str(chk.get("message", ""))),
                     cls="check",
                 )

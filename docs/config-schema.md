@@ -9,6 +9,8 @@ storage:
   path: data/status.db
   retention_hours: 24
 
+default_sla: 100.0
+
 ui:
   refresh_seconds: 30
   bucket_minutes: 15
@@ -27,6 +29,12 @@ services: []
 - `bucket_minutes` (int, default: `15`): timeline bar interval size.
 
 Timeline contains `24 * 60 / bucket_minutes` bars per service.
+
+## `default_sla`
+
+- `default_sla` (number, default: `100.0`): default percentage of successful check samples required in the current SLA window before a check is considered unhealthy.
+
+SLA windows use the same size as `ui.bucket_minutes` (for example, 30-minute windows when `bucket_minutes: 30`). Values are clamped to `0..100`. A check may override this with its own `sla` value.
 
 ## `services` (list)
 
@@ -55,6 +63,7 @@ Service-level status is the worst status among its checks.
   url: https://example.com/health
   method: GET
   timeout_seconds: 8
+  sla: 99.9
   expected_status: [200]
   degraded_statuses: [429, 503]
   body_contains: ok
@@ -65,6 +74,7 @@ Service-level status is the worst status among its checks.
 Notes:
 - `expected_status` may be an int or int list.
 - `degraded_statuses` may be an int or int list.
+- `sla` is optional and overrides top-level `default_sla` for this check.
 - If `body_contains`/`body_regex` is set and does not match, check fails (`red`).
 - `json_fields` checks are evaluated after status / body checks (see below).
 

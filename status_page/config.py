@@ -36,6 +36,7 @@ class ServiceConfig:
 class MonitorConfig:
     storage: StorageConfig = field(default_factory=StorageConfig)
     ui: UIConfig = field(default_factory=UIConfig)
+    default_sla: float = 100.0
     services: list[ServiceConfig] = field(default_factory=list)
 
 
@@ -79,6 +80,7 @@ def load_config(config_path: str | None = None) -> MonitorConfig:
     storage_raw = raw.get("storage", {}) or {}
     ui_raw = raw.get("ui", {}) or {}
     services_raw = raw.get("services", []) or []
+    default_sla_raw = raw.get("default_sla", 100.0)
 
     if not isinstance(storage_raw, dict):
         raise ConfigError("storage must be an object")
@@ -86,6 +88,12 @@ def load_config(config_path: str | None = None) -> MonitorConfig:
         raise ConfigError("ui must be an object")
     if not isinstance(services_raw, list):
         raise ConfigError("services must be a list")
+
+    try:
+        default_sla = float(default_sla_raw)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError("default_sla must be a number") from exc
+    default_sla = max(0.0, min(100.0, default_sla))
 
     config = MonitorConfig(
         storage=StorageConfig(
@@ -97,6 +105,7 @@ def load_config(config_path: str | None = None) -> MonitorConfig:
             bucket_minutes=max(1, int(ui_raw.get("bucket_minutes", 15))),
             title=str(ui_raw.get("title") or "Service Status").strip() or "Service Status",
         ),
+        default_sla=default_sla,
         services=[_normalize_service(svc, idx) for idx, svc in enumerate(services_raw)],
     )
 
